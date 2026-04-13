@@ -104,6 +104,10 @@ After running the scripts, check:
 
 Written together with [Claude Code](https://claude.ai/code).
 
+## License
+
+This project is licensed under the MIT License. See `LICENSE`.
+
 ## Notes
 
 - `fetch_garo_energy.py` requires access to the local GARO device on the same network.
