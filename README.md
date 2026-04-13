@@ -100,6 +100,10 @@ After running the scripts, check:
 - formulas, monthly totals, and `Grunddata` values in `energy_2026_summary.xlsx`
 - imported invoice values after `python extract_invoice_kwh.py`
 
+## Development
+
+Written together with [Claude Code](https://claude.ai/code).
+
 ## Notes
 
 - `fetch_garo_energy.py` requires access to the local GARO device on the same network.
