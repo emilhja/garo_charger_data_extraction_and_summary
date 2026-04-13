@@ -1,0 +1,22 @@
+{
+  "övre": {
+    "Garage01": { "adress": "Example Street 101", "lgh": 1, "owner": "Owner Example 01" },
+    "Garage02": { "adress": "Example Street 103", "lgh": 2, "owner": "Owner Example 02" },
+    "Garage03": { "adress": "Example Street 105", "lgh": 3, "owner": "Owner Example 03" },
+    "Garage04": { "adress": "Example Street 107", "lgh": 4, "owner": "Owner Example 04" },
+    "Garage05": { "adress": "Example Street 109", "lgh": 5, "owner": "Owner Example 05" },
+    "Garage06": { "adress": "Example Street 111", "lgh": 6, "owner": "Owner Example 06" },
+    "Garage07": { "adress": "Example Street 113", "lgh": 7, "owner": "Owner Example 07" },
+    "Garage08": { "adress": "Example Street 115", "lgh": 8, "owner": "Owner Example 08" }
+  },
+  "nedre": {
+    "Garage21": { "adress": "Example Lane 201", "lgh": 21, "owner": "Owner Example 21" },
+    "Garage22": { "adress": "Example Lane 203", "lgh": 22, "owner": "Owner Example 22" },
+    "Garage23": { "adress": "Example Lane 205", "lgh": 23, "owner": "Owner Example 23" },
+    "Garage24": { "adress": "Example Lane 207", "lgh": 24, "owner": "Owner Example 24" },
+    "Garage25": { "adress": "Example Lane 209", "lgh": 25, "owner": "Owner Example 25" },
+    "Garage26": { "adress": "Example Lane 211", "lgh": 26, "owner": "Owner Example 26" },
+    "Garage27": { "adress": "Example Lane 213", "lgh": 27, "owner": "Owner Example 27" },
+    "Garage28": { "adress": "Example Lane 215", "lgh": 28, "owner": "Owner Example 28" }
+  }
+}
