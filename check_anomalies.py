@@ -30,13 +30,14 @@ STANDING_ISSUES = [
 SPIKE_FACTOR = 3.0   # flag if month > SPIKE_FACTOR × median of other non-zero months
 
 
-def load_config():
+def load_config() -> dict:
+    """Load the garage configuration used to classify expected charger data."""
     with CONFIG_FILE.open(encoding="utf-8") as f:
         return json.load(f)
 
 
 def current_completed_months() -> list[int]:
-    """Return month numbers that are fully past (or current — partial data expected)."""
+    """Return month numbers that should already have data for the configured year."""
     now = datetime.now(timezone.utc)
     if now.year > YEAR:
         return list(range(1, 13))
@@ -57,7 +58,13 @@ def load_monthly_totals() -> tuple[dict[str, dict[int, float]], dict[str, set[in
     return {garage: dict(months) for garage, months in totals.items()}, seen
 
 
-def detect_anomalies(config, monthly_totals, seen_months, completed_months):
+def detect_anomalies(
+    config: dict,
+    monthly_totals: dict[str, dict[int, float]],
+    seen_months: dict[str, set[int]],
+    completed_months: list[int],
+) -> list[dict[str, str | None]]:
+    """Return structured anomaly records for missing data, zeros, and spikes."""
     anomalies = []
 
     ovre_garages = set(config.get("övre", {}).keys())
@@ -130,7 +137,8 @@ def detect_anomalies(config, monthly_totals, seen_months, completed_months):
     return anomalies
 
 
-def print_report(anomalies):
+def print_report(anomalies: list[dict[str, str | None]]) -> None:
+    """Print a human-readable anomaly report grouped by severity."""
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
     print(f"\n{'='*60}")
     print(f"  ANOMALY REPORT — energy_{YEAR}.json  [{now_str}]")
@@ -171,7 +179,8 @@ def run_checks() -> list[dict]:
     return detect_anomalies(config, monthly_totals, seen_months, completed_months)
 
 
-def main():
+def main() -> None:
+    """Run the anomaly checker as a standalone script."""
     if not ENERGY_FILE.exists():
         print(f"ERROR: {ENERGY_FILE} not found. Run fetch_garo_energy.py first.")
         return

@@ -5,24 +5,27 @@ import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import requests
 
 YEAR = 2026
-CONFIG_FILE = Path("garage_config.json")
 DATA_DIR = Path("data")
 ENV_FILE = Path(".env")
 GARO_API_BASE_URL_ENV = "GARO_API_BASE_URL"
+CSV_FIELDNAMES = [
+    "serial",
+    "name",
+    "meter_serial",
+    "date",
+    "energy_kwh",
+    "meter_start_wh",
+    "meter_stop_wh",
+]
 
 
-def load_project_config():
-    """Return the project configuration used for garage metadata."""
-    with CONFIG_FILE.open(encoding="utf-8") as config_file:
-        return json.load(config_file)
-
-
-def load_dotenv_file(env_file=ENV_FILE):
-    """Load simple KEY=VALUE pairs from `.env` into the process environment."""
+def load_dotenv_file(env_file: Path = ENV_FILE) -> None:
+    """Load simple `KEY=VALUE` pairs from a dotenv file into the environment."""
     if not env_file.exists():
         return
 
@@ -34,8 +37,8 @@ def load_dotenv_file(env_file=ENV_FILE):
         os.environ.setdefault(key.strip(), value.strip().strip("'\""))
 
 
-def get_garo_api_base_url():
-    """Return the GARO API base URL from the environment."""
+def get_garo_api_base_url() -> str:
+    """Return the configured GARO API base URL or raise a clear configuration error."""
     load_dotenv_file()
     base_url = os.getenv(GARO_API_BASE_URL_ENV)
     if not base_url:
@@ -45,15 +48,23 @@ def get_garo_api_base_url():
     return base_url
 
 
-def fetch_chargebox_config(base_url):
-    """Return the GARO chargebox configuration used to map serials to garage names."""
+def fetch_chargebox_config(base_url: str) -> dict[str, Any]:
+    """Fetch the GARO chargebox configuration used to map serials to garage names."""
     response = requests.get(f"{base_url}/config", timeout=10)
     response.raise_for_status()
     return response.json()
 
 
-def fetch_monthly_energy_data(base_url, chargebox_serial, year, month):
-    """Fetch daily energy readings for one charger and one month."""
+def fetch_monthly_energy_data(
+    base_url: str,
+    chargebox_serial: int | str,
+    year: int,
+    month: int,
+) -> dict[str, Any] | None:
+    """Fetch daily energy readings for one charger and month.
+
+    Returns `None` when the GARO API signals that the requested month has no data.
+    """
     request_payload = {
         "chargeboxSerial": int(chargebox_serial),
         "year": year,
@@ -68,8 +79,8 @@ def fetch_monthly_energy_data(base_url, chargebox_serial, year, month):
     return response.json()
 
 
-def get_last_month_to_fetch(target_year):
-    """Return the last month that should be fetched for the configured export year."""
+def get_last_month_to_fetch(target_year: int) -> int:
+    """Return the latest month that should be fetched for the configured export year."""
     current_date = datetime.now(timezone.utc)
     if target_year < current_date.year:
         return 12
@@ -80,18 +91,21 @@ def get_last_month_to_fetch(target_year):
     )
 
 
-def build_daily_energy_rows():
-    """Collect one output row per day and charger for the configured year."""
-    load_project_config()
+def build_daily_energy_rows() -> list[dict[str, Any]]:
+    """Collect one export row per charger-day for the configured year."""
     base_url = get_garo_api_base_url()
     chargebox_config = fetch_chargebox_config(base_url)
     chargebox_serials = chargebox_config.get("energySerials", [])
+    if not chargebox_serials:
+        raise KeyError("No `energySerials` found in the GARO `/config` response.")
+
     serial_to_reference = {
         str(slave["serialNumber"]): slave.get("reference", str(slave["serialNumber"]))
         for slave in chargebox_config.get("slaveList", [])
+        if "serialNumber" in slave
     }
 
-    energy_rows = []
+    energy_rows: list[dict[str, Any]] = []
     last_month_to_fetch = get_last_month_to_fetch(YEAR)
     for chargebox_serial in chargebox_serials:
         garage_name = serial_to_reference.get(str(chargebox_serial), str(chargebox_serial))
@@ -107,6 +121,12 @@ def build_daily_energy_rows():
             meter_start_values = month_data.get("start", [])
             meter_stop_values = month_data.get("stop", [])
             meter_serial = month_data.get("meterSerial", "")
+
+            if len(timestamps) != len(energy_values):
+                raise ValueError(
+                    f"Mismatched timestamp/value lengths for serial {chargebox_serial}, "
+                    f"{YEAR}-{month:02d}: {len(timestamps)} timestamps, {len(energy_values)} values."
+                )
 
             for index, timestamp_ms in enumerate(timestamps):
                 reading_date = datetime.fromtimestamp(
@@ -131,8 +151,8 @@ def build_daily_energy_rows():
     return energy_rows
 
 
-def write_output_files(energy_rows):
-    """Write the yearly exports used by the Excel summary script."""
+def write_output_files(energy_rows: list[dict[str, Any]]) -> None:
+    """Write the yearly JSON and CSV exports used by the workbook generator."""
     DATA_DIR.mkdir(exist_ok=True)
     json_output_path = DATA_DIR / f"energy_{YEAR}.json"
     csv_output_path = DATA_DIR / f"energy_{YEAR}.csv"
@@ -141,16 +161,15 @@ def write_output_files(energy_rows):
         json.dump(energy_rows, json_file, indent=2)
     print(f"\nSaved {len(energy_rows)} records to {json_output_path}")
 
-    if energy_rows:
-        with csv_output_path.open("w", newline="", encoding="utf-8") as csv_file:
-            writer = csv.DictWriter(csv_file, fieldnames=energy_rows[0].keys())
-            writer.writeheader()
-            writer.writerows(energy_rows)
-        print(f"Saved {len(energy_rows)} records to {csv_output_path}")
+    with csv_output_path.open("w", newline="", encoding="utf-8") as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames=CSV_FIELDNAMES)
+        writer.writeheader()
+        writer.writerows(energy_rows)
+    print(f"Saved {len(energy_rows)} records to {csv_output_path}")
 
 
-def main():
-    """Run the yearly GARO export workflow."""
+def main() -> None:
+    """Run the yearly GARO export workflow from API fetch to file output."""
     energy_rows = build_daily_energy_rows()
     write_output_files(energy_rows)
 

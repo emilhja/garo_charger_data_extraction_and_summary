@@ -78,6 +78,11 @@ def scan_fakturor() -> dict[str, dict[int, int]]:
     return usage_by_group_and_month
 
 
+def has_invoice_data(usage_by_group_and_month: dict[str, dict[int, int]]) -> bool:
+    """Return `True` when at least one invoice total was extracted."""
+    return any(usage_by_group_and_month[group] for group in usage_by_group_and_month)
+
+
 def update_summary_workbook(usage_by_group_and_month: dict[str, dict[int, int]]) -> None:
     """Write extracted Nedre kWh totals into the `Grunddata` sheet.
 
@@ -89,6 +94,8 @@ def update_summary_workbook(usage_by_group_and_month: dict[str, dict[int, int]])
         raise FileNotFoundError(f"Summary workbook not found: {SUMMARY_FILE}. Run build_energy_summary_workbook.py first.")
 
     workbook = openpyxl.load_workbook(SUMMARY_FILE)
+    if "Grunddata" not in workbook.sheetnames:
+        raise KeyError(f"`Grunddata` sheet not found in summary workbook: {SUMMARY_FILE}")
     worksheet = workbook["Grunddata"]
 
     if usage_by_group_and_month["Övre"]:
@@ -104,12 +111,12 @@ def update_summary_workbook(usage_by_group_and_month: dict[str, dict[int, int]])
     print(f"\nSaved {SUMMARY_FILE}")
 
 
-def main():
+def main() -> None:
     """Run the invoice extraction flow and update the workbook if data is found."""
     print("Scanning invoices...\n")
     usage_by_group_and_month = scan_fakturor()
 
-    if not any(usage_by_group_and_month["Övre"]) and not any(usage_by_group_and_month["Nedre"]):
+    if not has_invoice_data(usage_by_group_and_month):
         print("No Elhandel invoices found.")
         return
 
