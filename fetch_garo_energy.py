@@ -6,6 +6,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import requests
 
@@ -13,6 +14,7 @@ YEAR = 2026
 DATA_DIR = Path("data")
 ENV_FILE = Path(".env")
 GARO_API_BASE_URL_ENV = "GARO_API_BASE_URL"
+PROJECT_TIMEZONE = ZoneInfo("Europe/Stockholm")
 CSV_FIELDNAMES = [
     "serial",
     "name",
@@ -81,7 +83,7 @@ def fetch_monthly_energy_data(
 
 def get_last_month_to_fetch(target_year: int) -> int:
     """Return the latest month that should be fetched for the configured export year."""
-    current_date = datetime.now(timezone.utc)
+    current_date = datetime.now(PROJECT_TIMEZONE)
     if target_year < current_date.year:
         return 12
     if target_year == current_date.year:
@@ -108,10 +110,14 @@ def build_daily_energy_rows() -> list[dict[str, Any]]:
     energy_rows: list[dict[str, Any]] = []
     last_month_to_fetch = get_last_month_to_fetch(YEAR)
     for chargebox_serial in chargebox_serials:
-        garage_name = serial_to_reference.get(str(chargebox_serial), str(chargebox_serial))
+        garage_name = serial_to_reference.get(
+            str(chargebox_serial), str(chargebox_serial)
+        )
         print(f"Fetching {garage_name} (serial {chargebox_serial})...")
         for month in range(1, last_month_to_fetch + 1):
-            month_data = fetch_monthly_energy_data(base_url, chargebox_serial, YEAR, month)
+            month_data = fetch_monthly_energy_data(
+                base_url, chargebox_serial, YEAR, month
+            )
             if month_data is None:
                 print(f"  {YEAR}-{month:02d}: no data")
                 continue
@@ -140,10 +146,11 @@ def build_daily_energy_rows() -> list[dict[str, Any]]:
                 )
 
             for index, timestamp_ms in enumerate(timestamps):
-                reading_date = datetime.fromtimestamp(
-                    timestamp_ms / 1000,
-                    tz=timezone.utc,
-                ).strftime("%Y-%m-%d")
+                reading_date = (
+                    datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc)
+                    .astimezone(PROJECT_TIMEZONE)
+                    .strftime("%Y-%m-%d")
+                )
                 energy_rows.append(
                     {
                         "serial": chargebox_serial,
@@ -151,13 +158,19 @@ def build_daily_energy_rows() -> list[dict[str, Any]]:
                         "meter_serial": meter_serial,
                         "date": reading_date,
                         "energy_kwh": round(energy_values[index], 4),
-                        "meter_start_wh": meter_start_values[index] if meter_start_values else None,
-                        "meter_stop_wh": meter_stop_values[index] if meter_stop_values else None,
+                        "meter_start_wh": (
+                            meter_start_values[index] if meter_start_values else None
+                        ),
+                        "meter_stop_wh": (
+                            meter_stop_values[index] if meter_stop_values else None
+                        ),
                     }
                 )
 
             month_total_kwh = sum(value for value in energy_values if value is not None)
-            print(f"  {YEAR}-{month:02d}: {month_total_kwh:.2f} kWh ({len(timestamps)} days)")
+            print(
+                f"  {YEAR}-{month:02d}: {month_total_kwh:.2f} kWh ({len(timestamps)} days)"
+            )
 
     return energy_rows
 

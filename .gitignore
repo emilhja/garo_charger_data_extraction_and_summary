@@ -1,18 +1,32 @@
+# Local tool metadata
 .agent/
-venv/
-__pycache__/
-*.pyc
-.env
-energy_*_summary.xlsx
-data/energy_*.json
-data/energy_*.csv
-garage_config.json
+.claude/
+.codex
 AGENTS.md
 CLAUDE.md
-.claude/
+
+# Environment and virtualenv
+.env
+venv/
+
+# Python caches
+__pycache__/
+*.pyc
+.ruff_cache/
+
+# Private local configuration
+garage_config.json
+
+# Generated exports and workbooks
 data/
-2026/
-.codex
+data/energy_*.csv
+data/energy_*.json
+energy_*_summary.xlsx
 *.xlsx
+
+# Source data and attachments
+2026/
+2027/
 *.pdf
 *.zip
+*.xlsx

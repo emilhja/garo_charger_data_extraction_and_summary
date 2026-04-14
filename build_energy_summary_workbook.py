@@ -1,22 +1,51 @@
 """Create a yearly Excel summary workbook from charger usage and price inputs."""
 
-from collections import defaultdict
 import json
-from pathlib import Path
 import re
+from collections import defaultdict
+from pathlib import Path
 from typing import Any
 
 import openpyxl
-from check_anomalies import run_checks, print_report, STANDING_ISSUES
+
+from check_anomalies import print_report, run_checks
 
 YEAR = 2026
 CONFIG_FILE = Path("garage_config.json")
 DATA_DIR = Path("data")
 ENERGY_FILE = DATA_DIR / f"energy_{YEAR}.json"
-PRICES_FILE = Path(f"{YEAR}/Förbrukning/Priser och Förbrukningsuppgifter laddstationer {YEAR}.xlsx")
+PRICES_FILE = Path(
+    f"{YEAR}/Förbrukning/Priser och Förbrukningsuppgifter laddstationer {YEAR}.xlsx"
+)
 SUMMARY_OUTPUT_FILE = Path(f"energy_{YEAR}_summary.xlsx")
-MONTH_ABBREVIATIONS = ["Jan", "Feb", "Mars", "April", "Maj", "Juni", "Juli", "Aug", "Sep", "Okt", "Nov", "Dec"]
-MONTH_NAMES = ["Jan", "Februari", "Mars", "April", "Maj", "Juni", "Juli", "Augusti", "September", "Oktober", "November", "December"]
+MONTH_ABBREVIATIONS = [
+    "Jan",
+    "Feb",
+    "Mars",
+    "April",
+    "Maj",
+    "Juni",
+    "Juli",
+    "Aug",
+    "Sep",
+    "Okt",
+    "Nov",
+    "Dec",
+]
+MONTH_NAMES = [
+    "Jan",
+    "Februari",
+    "Mars",
+    "April",
+    "Maj",
+    "Juni",
+    "Juli",
+    "Augusti",
+    "September",
+    "Oktober",
+    "November",
+    "December",
+]
 
 
 def load_garage_configuration() -> dict[str, dict[str, dict[str, Any]]]:
@@ -26,7 +55,7 @@ def load_garage_configuration() -> dict[str, dict[str, dict[str, Any]]]:
 
 
 def build_garage_metadata(
-    garage_config: dict[str, dict[str, dict[str, Any]]]
+    garage_config: dict[str, dict[str, dict[str, Any]]],
 ) -> dict[str, tuple[str, str]]:
     """Build a garage -> (mgg, group) lookup from the configuration file."""
     garage_metadata = {}
@@ -59,7 +88,9 @@ def load_monthly_prices() -> tuple[dict[int, float], dict[int, float]]:
     """Read monthly cost per kWh excluding VAT from the source price workbook."""
     workbook = openpyxl.load_workbook(PRICES_FILE, data_only=True)
     if "Grunddata" not in workbook.sheetnames:
-        raise KeyError(f"`Grunddata` sheet not found in pricing workbook: {PRICES_FILE}")
+        raise KeyError(
+            f"`Grunddata` sheet not found in pricing workbook: {PRICES_FILE}"
+        )
     worksheet = workbook["Grunddata"]
     # Rows 3-14 map to January-December.
     # Column I stores the upper garage price and column K stores the lower garage price.
@@ -81,7 +112,9 @@ def load_monthly_energy_usage() -> dict[str, dict[int, float]]:
     monthly_usage_by_garage = defaultdict(lambda: defaultdict(float))
     for energy_row in energy_rows:
         month_num = int(energy_row["date"][5:7])
-        monthly_usage_by_garage[energy_row["name"]][month_num] += energy_row.get("energy_kwh") or 0
+        monthly_usage_by_garage[energy_row["name"]][month_num] += (
+            energy_row.get("energy_kwh") or 0
+        )
     return monthly_usage_by_garage
 
 
@@ -119,7 +152,11 @@ def create_summary_workbook(
         worksheet["A2"] = "Förbrukning"
         for column_index, month_num in enumerate(range(1, 13), start=2):
             monthly_kwh = monthly_usage_by_garage.get(garage_name, {}).get(month_num)
-            usage_cell = worksheet.cell(row=2, column=column_index, value=monthly_kwh if monthly_kwh is not None else 0)
+            usage_cell = worksheet.cell(
+                row=2,
+                column=column_index,
+                value=monthly_kwh if monthly_kwh is not None else 0,
+            )
             usage_cell.number_format = "0.0"
 
         worksheet["A3"] = "Kostnad exkl. moms (se Blad 1)"
@@ -136,7 +173,9 @@ def create_summary_workbook(
     add_grunddata_sheet(workbook, garage_config)
 
     workbook.save(output_file)
-    print(f"Saved {output_file} with {len(workbook.sheetnames)} sheets: {workbook.sheetnames}")
+    print(
+        f"Saved {output_file} with {len(workbook.sheetnames)} sheets: {workbook.sheetnames}"
+    )
 
 
 def add_cost_summary_sheet(
@@ -161,7 +200,9 @@ def add_cost_summary_sheet(
         key=lambda garage_item: apartment_number_by_garage.get(garage_item[0], 999),
     )
 
-    for row_index, (garage_name, (mgg_name, _garage_group)) in enumerate(sorted_garages, start=2):
+    for row_index, (garage_name, (mgg_name, _garage_group)) in enumerate(
+        sorted_garages, start=2
+    ):
         apartment_number = apartment_number_by_garage.get(garage_name, "?")
         sheet_name = make_garage_sheet_name(garage_name, mgg_name)
         garage_number = garage_name.replace("Garage", "").zfill(2)
@@ -184,9 +225,11 @@ def add_grunddata_sheet(
     garage_config: dict[str, dict[str, dict[str, Any]]],
 ) -> None:
     """Copy the pricing sheet structure and replace kWh columns with live SUM formulas."""
-    source_workbook = openpyxl.load_workbook(PRICES_FILE, data_only=True)
+    source_workbook = openpyxl.load_workbook(PRICES_FILE, data_only=False)
     if "Grunddata" not in source_workbook.sheetnames:
-        raise KeyError(f"`Grunddata` sheet not found in pricing workbook: {PRICES_FILE}")
+        raise KeyError(
+            f"`Grunddata` sheet not found in pricing workbook: {PRICES_FILE}"
+        )
     source_worksheet = source_workbook["Grunddata"]
 
     worksheet = workbook.create_sheet(title="Grunddata", index=1)
@@ -197,12 +240,16 @@ def add_grunddata_sheet(
         garage_address = garage_info.get("mgg") or garage_info.get("adress")
         if not garage_address:
             raise KeyError(f"Missing address for {garage_name} in garage_config.json.")
-        upper_group_sheet_names.append(make_garage_sheet_name(garage_name, garage_address))
+        upper_group_sheet_names.append(
+            make_garage_sheet_name(garage_name, garage_address)
+        )
     for garage_name, garage_info in garage_config.get("nedre", {}).items():
         garage_address = garage_info.get("mgg") or garage_info.get("adress")
         if not garage_address:
             raise KeyError(f"Missing address for {garage_name} in garage_config.json.")
-        lower_group_sheet_names.append(make_garage_sheet_name(garage_name, garage_address))
+        lower_group_sheet_names.append(
+            make_garage_sheet_name(garage_name, garage_address)
+        )
 
     if not upper_group_sheet_names:
         raise ValueError("No `övre` garages found in garage_config.json.")
@@ -210,19 +257,34 @@ def add_grunddata_sheet(
         raise ValueError("No `nedre` garages found in garage_config.json.")
 
     for column_index in range(1, 13):
-        worksheet.cell(row=1, column=column_index, value=source_worksheet.cell(row=1, column=column_index).value)
+        worksheet.cell(
+            row=1,
+            column=column_index,
+            value=source_worksheet.cell(row=1, column=column_index).value,
+        )
 
     for column_index in range(1, 13):
-        worksheet.cell(row=2, column=column_index, value=source_worksheet.cell(row=2, column=column_index).value)
+        worksheet.cell(
+            row=2,
+            column=column_index,
+            value=source_worksheet.cell(row=2, column=column_index).value,
+        )
 
     for source_row in range(3, 15):
         month_index = source_row - 3
         month_col_letter = openpyxl.utils.get_column_letter(month_index + 2)
 
-        worksheet.cell(row=source_row, column=1, value=source_worksheet.cell(row=source_row, column=1).value)
+        worksheet.cell(
+            row=source_row,
+            column=1,
+            value=source_worksheet.cell(row=source_row, column=1).value,
+        )
 
         # Col B: sum kWh row from all övre garage sheets (GARO API data).
-        upper_group_references = "+".join(f"'{sheet_name}'!{month_col_letter}2" for sheet_name in upper_group_sheet_names)
+        upper_group_references = "+".join(
+            f"'{sheet_name}'!{month_col_letter}2"
+            for sheet_name in upper_group_sheet_names
+        )
         worksheet.cell(row=source_row, column=2, value=f"={upper_group_references}")
 
         # Col C: nedre kWh comes from invoice PDFs, not from the garage sheets.
@@ -230,11 +292,17 @@ def add_grunddata_sheet(
         worksheet.cell(row=source_row, column=3, value=0)
 
         for column_index in range(4, 13):
-            worksheet.cell(row=source_row, column=column_index, value=source_worksheet.cell(row=source_row, column=column_index).value)
+            worksheet.cell(
+                row=source_row,
+                column=column_index,
+                value=source_worksheet.cell(row=source_row, column=column_index).value,
+            )
 
     for source_row in range(15, 20):
         for column_index in range(1, 13):
-            cell_value = source_worksheet.cell(row=source_row, column=column_index).value
+            cell_value = source_worksheet.cell(
+                row=source_row, column=column_index
+            ).value
             if cell_value is not None:
                 worksheet.cell(row=source_row, column=column_index, value=cell_value)
 
@@ -245,7 +313,9 @@ def add_grunddata_sheet(
 def main() -> None:
     """Run the workbook generation flow from current JSON and pricing inputs."""
     if not ENERGY_FILE.exists():
-        raise FileNotFoundError(f"Energy data not found: {ENERGY_FILE}. Run fetch_garo_energy.py first.")
+        raise FileNotFoundError(
+            f"Energy data not found: {ENERGY_FILE}. Run fetch_garo_energy.py first."
+        )
     if not PRICES_FILE.exists():
         raise FileNotFoundError(f"Pricing workbook not found: {PRICES_FILE}")
     upper_group_prices, lower_group_prices = load_monthly_prices()
@@ -263,5 +333,5 @@ def main() -> None:
     print_report(anomalies)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

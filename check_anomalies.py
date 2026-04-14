@@ -11,14 +11,24 @@ CONFIG_FILE = Path("garage_config.json")
 DATA_DIR = Path("data")
 ENERGY_FILE = DATA_DIR / f"energy_{YEAR}.json"
 MONTH_NAMES = [
-    "Jan", "Feb", "Mars", "April", "Maj", "Juni",
-    "Juli", "Aug", "Sep", "Okt", "Nov", "Dec",
+    "Jan",
+    "Feb",
+    "Mars",
+    "April",
+    "Maj",
+    "Juni",
+    "Juli",
+    "Aug",
+    "Sep",
+    "Okt",
+    "Nov",
+    "Dec",
 ]
 
 # Garage+months where 0 kWh is expected — suppress false positives.
 EXPECTED_ZERO_MONTHS: dict[str, list[int]] = {
-    "Garage08": list(range(1, 13)),   # no sessions ever recorded
-    "Garage12": [1, 2, 3],            # started recording April 2026
+    "Garage08": list(range(1, 13)),  # no sessions ever recorded
+    "Garage12": [1, 2, 3],  # started recording April 2026
 }
 
 # Always-on notes — known structural issues independent of data.
@@ -27,7 +37,7 @@ STANDING_ISSUES = [
     "kWh may be ~50% of actual. Find second serial in GARO admin and add to energySerials.",
 ]
 
-SPIKE_FACTOR = 3.0   # flag if month > SPIKE_FACTOR × median of other non-zero months
+SPIKE_FACTOR = 3.0  # flag if month > SPIKE_FACTOR × median of other non-zero months
 
 
 def load_config() -> dict:
@@ -74,24 +84,28 @@ def detect_anomalies(
     # Nedre garages should have no JSON data.
     surprise_nedre = all_json_garages & nedre_garages
     for garage in sorted(surprise_nedre):
-        anomalies.append({
-            "severity": "WARN",
-            "garage": garage,
-            "month": None,
-            "kind": "UNEXPECTED_DATA",
-            "detail": "Nedre garage appears in JSON — data source should be invoices only.",
-        })
+        anomalies.append(
+            {
+                "severity": "WARN",
+                "garage": garage,
+                "month": None,
+                "kind": "UNEXPECTED_DATA",
+                "detail": "Nedre garage appears in JSON — data source should be invoices only.",
+            }
+        )
 
     # Garages in JSON but not in config at all.
     unknown_garages = all_json_garages - ovre_garages - nedre_garages
     for garage in sorted(unknown_garages):
-        anomalies.append({
-            "severity": "WARN",
-            "garage": garage,
-            "month": None,
-            "kind": "UNKNOWN_GARAGE",
-            "detail": f"Garage '{garage}' in JSON but not in garage_config.json.",
-        })
+        anomalies.append(
+            {
+                "severity": "WARN",
+                "garage": garage,
+                "month": None,
+                "kind": "UNKNOWN_GARAGE",
+                "detail": f"Garage '{garage}' in JSON but not in garage_config.json.",
+            }
+        )
 
     for garage in sorted(ovre_garages):
         garage_totals = monthly_totals.get(garage, {})
@@ -99,7 +113,9 @@ def detect_anomalies(
         expected_zeros = EXPECTED_ZERO_MONTHS.get(garage, [])
 
         non_zero_values = [kwh for m, kwh in garage_totals.items() if kwh > 0]
-        median_kwh = statistics.median(non_zero_values) if len(non_zero_values) >= 2 else None
+        median_kwh = (
+            statistics.median(non_zero_values) if len(non_zero_values) >= 2 else None
+        )
 
         for month in completed_months:
             month_label = MONTH_NAMES[month - 1]
@@ -108,31 +124,37 @@ def detect_anomalies(
             if month not in garage_seen:
                 # No records at all — API returned 204/404 for this month.
                 if month not in expected_zeros:
-                    anomalies.append({
-                        "severity": "WARN",
-                        "garage": garage,
-                        "month": month_label,
-                        "kind": "NO_API_DATA",
-                        "detail": "Month absent from JSON (API returned no data). Charger offline or fetch failed?",
-                    })
+                    anomalies.append(
+                        {
+                            "severity": "WARN",
+                            "garage": garage,
+                            "month": month_label,
+                            "kind": "NO_API_DATA",
+                            "detail": "Month absent from JSON (API returned no data). Charger offline or fetch failed?",
+                        }
+                    )
             elif kwh == 0.0:
                 # Records exist but sum to zero.
                 if month not in expected_zeros:
-                    anomalies.append({
-                        "severity": "WARN",
+                    anomalies.append(
+                        {
+                            "severity": "WARN",
+                            "garage": garage,
+                            "month": month_label,
+                            "kind": "ZERO_KWH",
+                            "detail": "API returned records but total is 0 kWh. Charger fault or no sessions?",
+                        }
+                    )
+            elif median_kwh is not None and kwh > SPIKE_FACTOR * median_kwh:
+                anomalies.append(
+                    {
+                        "severity": "INFO",
                         "garage": garage,
                         "month": month_label,
-                        "kind": "ZERO_KWH",
-                        "detail": "API returned records but total is 0 kWh. Charger fault or no sessions?",
-                    })
-            elif median_kwh is not None and kwh > SPIKE_FACTOR * median_kwh:
-                anomalies.append({
-                    "severity": "INFO",
-                    "garage": garage,
-                    "month": month_label,
-                    "kind": "SPIKE",
-                    "detail": f"{kwh:.1f} kWh is >{SPIKE_FACTOR:.0f}× median ({median_kwh:.1f} kWh). Double-check meter reading.",
-                })
+                        "kind": "SPIKE",
+                        "detail": f"{kwh:.1f} kWh is >{SPIKE_FACTOR:.0f}× median ({median_kwh:.1f} kWh). Double-check meter reading.",
+                    }
+                )
 
     return anomalies
 
@@ -168,7 +190,9 @@ def print_report(anomalies: list[dict[str, str | None]]) -> None:
     if total == 0:
         print("\n  No anomalies detected (excluding known issues).")
     else:
-        print(f"\n  {len(warns)} warning(s), {len(infos)} info(s) — review before finalising workbook.")
+        print(
+            f"\n  {len(warns)} warning(s), {len(infos)} info(s) — review before finalising workbook."
+        )
     print(f"{'='*60}\n")
 
 

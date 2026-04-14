@@ -80,6 +80,12 @@ Install dependencies if needed:
 pip install -r requirements.txt
 ```
 
+Install dev tooling if needed:
+
+```bash
+pip install -r requirements-dev.txt
+```
+
 ## Workflow
 
 1. Fetch charger usage from the GARO device:
@@ -147,6 +153,14 @@ After running the scripts, check:
 ## Development
 
 Written together with [Claude Code](https://claude.ai/code).
+See `README-dev.md` for contributor setup, linting, and CI notes.
+
+Lint and format checks:
+
+```bash
+ruff check .
+black --check .
+```
 
 ## License
 

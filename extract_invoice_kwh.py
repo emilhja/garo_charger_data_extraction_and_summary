@@ -11,15 +11,26 @@ document this script looks for.
 
 import re
 from pathlib import Path
-import pdfplumber
+
 import openpyxl
+import pdfplumber
 
 FAKTUROR_DIR = Path("2026/Fakturor")
 SUMMARY_FILE = Path("energy_2026_summary.xlsx")
 
 MONTH_ROW = {
-    1: 3, 2: 4, 3: 5, 4: 6, 5: 7, 6: 8,
-    7: 9, 8: 10, 9: 11, 10: 12, 11: 13, 12: 14,
+    1: 3,
+    2: 4,
+    3: 5,
+    4: 6,
+    5: 7,
+    6: 8,
+    7: 9,
+    8: 10,
+    9: 11,
+    10: 12,
+    11: 13,
+    12: 14,
 }
 
 # Regex: match "Spotpris  2026-01-01 - 2026-01-31  2 772 kWh ..."
@@ -44,7 +55,9 @@ def extract_kwh_from_pdf(pdf_path: Path) -> tuple[int, int] | None:
 
     m = SPOTPRIS_RE.search(text)
     if not m:
-        print(f"  Warning: {pdf_path.name} looks like Elhandel but no Spotpris row matched — check layout.")
+        print(
+            f"  Warning: {pdf_path.name} looks like Elhandel but no Spotpris row matched — check layout."
+        )
         return None
 
     month = int(m.group(2))
@@ -73,7 +86,9 @@ def scan_fakturor() -> dict[str, dict[int, int]]:
                             f"Conflicting invoice values for {group} month {month}: "
                             f"{existing_kwh} kWh and {kwh} kWh ({pdf_path})"
                         )
-                    print(f"  Warning: duplicate invoice for {group} month={month} ignored ({pdf_path.name})")
+                    print(
+                        f"  Warning: duplicate invoice for {group} month={month} ignored ({pdf_path.name})"
+                    )
                     continue
                 usage_by_group_and_month[group][month] = kwh
                 print(f"  {group} month={month}: {kwh} kWh  ({pdf_path.name})")
@@ -86,7 +101,9 @@ def has_invoice_data(usage_by_group_and_month: dict[str, dict[int, int]]) -> boo
     return any(usage_by_group_and_month[group] for group in usage_by_group_and_month)
 
 
-def update_summary_workbook(usage_by_group_and_month: dict[str, dict[int, int]]) -> None:
+def update_summary_workbook(
+    usage_by_group_and_month: dict[str, dict[int, int]],
+) -> None:
     """Write extracted Nedre kWh totals into the `Grunddata` sheet.
 
     Övre kWh (col B) is derived from SUM formulas over individual garage sheets
@@ -94,17 +111,29 @@ def update_summary_workbook(usage_by_group_and_month: dict[str, dict[int, int]])
     cross-checking only.
     """
     if not SUMMARY_FILE.exists():
-        raise FileNotFoundError(f"Summary workbook not found: {SUMMARY_FILE}. Run build_energy_summary_workbook.py first.")
+        raise FileNotFoundError(
+            f"Summary workbook not found: {SUMMARY_FILE}. Run build_energy_summary_workbook.py first."
+        )
 
     workbook = openpyxl.load_workbook(SUMMARY_FILE)
     if "Grunddata" not in workbook.sheetnames:
-        raise KeyError(f"`Grunddata` sheet not found in summary workbook: {SUMMARY_FILE}")
+        raise KeyError(
+            f"`Grunddata` sheet not found in summary workbook: {SUMMARY_FILE}"
+        )
     worksheet = workbook["Grunddata"]
 
     if usage_by_group_and_month["Övre"]:
-        print("\nÖvre invoice totals (informational — not written; Grunddata col B uses SUM formulas from garage sheets):")
+        print(
+            "\nÖvre invoice totals (informational — not written; Grunddata col B uses SUM formulas from garage sheets):"
+        )
         for month in sorted(usage_by_group_and_month["Övre"]):
-            print(f"  Övre month {month}: {usage_by_group_and_month['Övre'][month]} kWh")
+            print(
+                f"  Övre month {month}: {usage_by_group_and_month['Övre'][month]} kWh"
+            )
+
+    # Clear prior Nedre invoice imports before writing the current scan result.
+    for row in MONTH_ROW.values():
+        worksheet.cell(row=row, column=3).value = 0
 
     for month, kwh in usage_by_group_and_month["Nedre"].items():
         row = MONTH_ROW[month]
