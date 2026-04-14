@@ -87,11 +87,15 @@ def load_monthly_energy_usage() -> dict[str, dict[int, float]]:
 
 def create_summary_workbook(
     monthly_usage_by_garage: dict[str, dict[int, float]],
-    upper_group_prices: dict[int, float],
-    lower_group_prices: dict[int, float],
     output_file: Path = SUMMARY_OUTPUT_FILE,
 ) -> None:
-    """Create the summary workbook with one sheet per garage plus aggregate sheets."""
+    """Create the summary workbook with one sheet per garage plus aggregate sheets.
+
+    Row 3 of each garage sheet uses Excel formulas that multiply row 2 kWh by the
+    matching monthly price in the `Grunddata` sheet (column I for övre, K for nedre).
+    This keeps costs live in Excel: editing a kWh value or a price automatically
+    recalculates all cost cells without regenerating the workbook.
+    """
     garage_config = load_garage_configuration()
     garage_metadata = build_garage_metadata(garage_config)
     workbook = openpyxl.Workbook()
@@ -102,7 +106,8 @@ def create_summary_workbook(
 
     for garage_name in sorted(all_garage_names, key=garage_sort_key):
         mgg_name, garage_group = garage_metadata.get(garage_name, ("Unknown", "nedre"))
-        price_by_month = upper_group_prices if garage_group == "övre" else lower_group_prices
+        # Column I = övre price per kWh; column K = nedre price per kWh (Grunddata rows 3–14).
+        price_col = "I" if garage_group == "övre" else "K"
         sheet_name = make_garage_sheet_name(garage_name, mgg_name)
 
         worksheet = workbook.create_sheet(title=sheet_name)
@@ -119,9 +124,11 @@ def create_summary_workbook(
 
         worksheet["A3"] = "Kostnad exkl. moms (se Blad 1)"
         for column_index, month_num in enumerate(range(1, 13), start=2):
-            monthly_kwh = monthly_usage_by_garage.get(garage_name, {}).get(month_num, 0)
-            monthly_cost = monthly_kwh * price_by_month.get(month_num, 0)
-            worksheet.cell(row=3, column=column_index, value=round(monthly_cost, 5) if monthly_cost is not None else 0)
+            kwh_col = openpyxl.utils.get_column_letter(column_index)
+            # Grunddata rows 3–14 correspond to months 1–12.
+            grunddata_row = month_num + 2
+            formula = f"={kwh_col}2*Grunddata!{price_col}{grunddata_row}"
+            worksheet.cell(row=3, column=column_index, value=formula)
 
         worksheet.column_dimensions["A"].width = 34
 
@@ -214,12 +221,13 @@ def add_grunddata_sheet(
 
         worksheet.cell(row=source_row, column=1, value=source_worksheet.cell(row=source_row, column=1).value)
 
-        # Sum row 2 from every garage sheet because that row always contains monthly kWh usage.
+        # Col B: sum kWh row from all övre garage sheets (GARO API data).
         upper_group_references = "+".join(f"'{sheet_name}'!{month_col_letter}2" for sheet_name in upper_group_sheet_names)
         worksheet.cell(row=source_row, column=2, value=f"={upper_group_references}")
 
-        lower_group_references = "+".join(f"'{sheet_name}'!{month_col_letter}2" for sheet_name in lower_group_sheet_names)
-        worksheet.cell(row=source_row, column=3, value=f"={lower_group_references}")
+        # Col C: nedre kWh comes from invoice PDFs, not from the garage sheets.
+        # Leave as 0 here; extract_invoice_kwh.py writes the real values.
+        worksheet.cell(row=source_row, column=3, value=0)
 
         for column_index in range(4, 13):
             worksheet.cell(row=source_row, column=column_index, value=source_worksheet.cell(row=source_row, column=column_index).value)
@@ -249,7 +257,7 @@ def main() -> None:
         print(f"  {MONTH_ABBREVIATIONS[month_num - 1]:10s}: {price}")
 
     monthly_usage_by_garage = load_monthly_energy_usage()
-    create_summary_workbook(monthly_usage_by_garage, upper_group_prices, lower_group_prices)
+    create_summary_workbook(monthly_usage_by_garage)
 
     anomalies = run_checks()
     print_report(anomalies)

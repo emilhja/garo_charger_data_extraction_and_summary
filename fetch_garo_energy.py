@@ -122,10 +122,21 @@ def build_daily_energy_rows() -> list[dict[str, Any]]:
             meter_stop_values = month_data.get("stop", [])
             meter_serial = month_data.get("meterSerial", "")
 
-            if len(timestamps) != len(energy_values):
+            n = len(timestamps)
+            if len(energy_values) != n:
                 raise ValueError(
                     f"Mismatched timestamp/value lengths for serial {chargebox_serial}, "
-                    f"{YEAR}-{month:02d}: {len(timestamps)} timestamps, {len(energy_values)} values."
+                    f"{YEAR}-{month:02d}: {n} timestamps, {len(energy_values)} values."
+                )
+            if meter_start_values and len(meter_start_values) != n:
+                raise ValueError(
+                    f"Mismatched meter_start length for serial {chargebox_serial}, "
+                    f"{YEAR}-{month:02d}: {n} timestamps, {len(meter_start_values)} meter_start."
+                )
+            if meter_stop_values and len(meter_stop_values) != n:
+                raise ValueError(
+                    f"Mismatched meter_stop length for serial {chargebox_serial}, "
+                    f"{YEAR}-{month:02d}: {n} timestamps, {len(meter_stop_values)} meter_stop."
                 )
 
             for index, timestamp_ms in enumerate(timestamps):
@@ -139,9 +150,9 @@ def build_daily_energy_rows() -> list[dict[str, Any]]:
                         "name": garage_name,
                         "meter_serial": meter_serial,
                         "date": reading_date,
-                        "energy_kwh": round(energy_values[index], 4) if index < len(energy_values) else None,
-                        "meter_start_wh": meter_start_values[index] if index < len(meter_start_values) else None,
-                        "meter_stop_wh": meter_stop_values[index] if index < len(meter_stop_values) else None,
+                        "energy_kwh": round(energy_values[index], 4),
+                        "meter_start_wh": meter_start_values[index] if meter_start_values else None,
+                        "meter_stop_wh": meter_stop_values[index] if meter_stop_values else None,
                     }
                 )
 

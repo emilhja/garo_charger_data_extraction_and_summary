@@ -11,8 +11,8 @@ CONFIG_FILE = Path("garage_config.json")
 DATA_DIR = Path("data")
 ENERGY_FILE = DATA_DIR / f"energy_{YEAR}.json"
 MONTH_NAMES = [
-    "Jan", "Feb", "Mar", "Apr", "Maj", "Jun",
-    "Jul", "Aug", "Sep", "Okt", "Nov", "Dec",
+    "Jan", "Feb", "Mars", "April", "Maj", "Juni",
+    "Juli", "Aug", "Sep", "Okt", "Nov", "Dec",
 ]
 
 # Garage+months where 0 kWh is expected — suppress false positives.
@@ -153,6 +153,7 @@ def print_report(anomalies: list[dict[str, str | None]]) -> None:
     infos = [a for a in anomalies if a["severity"] == "INFO"]
 
     def _print_group(items, label):
+        """Print one severity group heading followed by its anomaly lines."""
         if not items:
             return
         print(f"\n[{label}]")

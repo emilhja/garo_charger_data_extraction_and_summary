@@ -30,18 +30,21 @@ SPOTPRIS_RE = re.compile(
 
 
 def extract_kwh_from_pdf(pdf_path: Path) -> tuple[int, int] | None:
-    """Return `(month, kwh)` for an Elhandel invoice, otherwise `None`."""
+    """Return `(month, kwh)` for an Elhandel invoice, otherwise `None`.
+
+    Scans the full text of all pages so the function is resilient to layout
+    changes that shift content between pages. Returns `None` for Elnät invoices
+    and for PDFs that contain no recognisable Spotpris row.
+    """
     with pdfplumber.open(pdf_path) as pdf:
-        if len(pdf.pages) < 2:
-            print(f"  Warning: {pdf_path.name} has only one page — skipping (expected 2+)")
-            return None
-        text = pdf.pages[1].extract_text() or ""
+        text = "\n".join(page.extract_text() or "" for page in pdf.pages)
 
     if "ELHANDEL" not in text.upper():
         return None
 
     m = SPOTPRIS_RE.search(text)
     if not m:
+        print(f"  Warning: {pdf_path.name} looks like Elhandel but no Spotpris row matched — check layout.")
         return None
 
     month = int(m.group(2))
