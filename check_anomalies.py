@@ -1,5 +1,6 @@
 """Scan energy JSON for anomalies and print a structured report."""
 
+import csv
 import json
 import statistics
 from collections import defaultdict
@@ -10,6 +11,7 @@ YEAR = 2026
 CONFIG_FILE = Path("garage_config.json")
 DATA_DIR = Path("data")
 ENERGY_FILE = DATA_DIR / f"energy_{YEAR}.json"
+ENERGY_CSV_FILE = DATA_DIR / f"energy_{YEAR}.csv"
 MONTH_NAMES = [
     "Jan",
     "Feb",
@@ -56,8 +58,7 @@ def current_completed_months() -> list[int]:
 
 def load_monthly_totals() -> tuple[dict[str, dict[int, float]], dict[str, set[int]]]:
     """Return {garage_name: {month_num: total_kwh}} from JSON records."""
-    with ENERGY_FILE.open(encoding="utf-8") as f:
-        rows = json.load(f)
+    rows = load_energy_rows()
     totals: dict[str, dict[int, float]] = defaultdict(lambda: defaultdict(float))
     seen: dict[str, set[int]] = defaultdict(set)
     for row in rows:
@@ -66,6 +67,43 @@ def load_monthly_totals() -> tuple[dict[str, dict[int, float]], dict[str, set[in
         seen[row["name"]].add(month)
     # Convert defaultdict → plain dict so missing keys are detectable.
     return {garage: dict(months) for garage, months in totals.items()}, seen
+
+
+def load_energy_rows() -> list[dict]:
+    """Load energy rows from JSON, or fall back to CSV if JSON is empty/invalid."""
+    if ENERGY_FILE.exists():
+        try:
+            with ENERGY_FILE.open(encoding="utf-8") as f:
+                rows = json.load(f)
+        except json.JSONDecodeError:
+            rows = None
+        else:
+            if not isinstance(rows, list):
+                raise ValueError(
+                    f"Expected a JSON list in {ENERGY_FILE}, got {type(rows).__name__}."
+                )
+            return rows
+
+    if ENERGY_CSV_FILE.exists():
+        with ENERGY_CSV_FILE.open(newline="", encoding="utf-8") as csv_file:
+            rows = []
+            for row in csv.DictReader(csv_file):
+                rows.append(
+                    {
+                        "name": row["name"],
+                        "date": row["date"],
+                        "energy_kwh": float(row["energy_kwh"] or 0),
+                    }
+                )
+        print(
+            f"Using CSV fallback because {ENERGY_FILE} is empty or invalid: {ENERGY_CSV_FILE}"
+        )
+        return rows
+
+    raise ValueError(
+        f"Energy data could not be loaded. {ENERGY_FILE} is empty or invalid and "
+        f"no CSV fallback was found at {ENERGY_CSV_FILE}. Run fetch_garo_energy.py again."
+    )
 
 
 def detect_anomalies(
